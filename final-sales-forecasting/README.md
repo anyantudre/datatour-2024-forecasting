@@ -1,83 +1,55 @@
-# Challenge Finale DataTour 2024
+<h1 align="center">Sales Forecasting (final, 2nd place)</h1>
 
-## Prédiction des ventes futures pour une entreprise basée sur les ventes passées et des facteurs contextuels
+Forecasting how many units of each product a company sells, from past sales, promotions, holidays, weather and stock. Most of the work went into filling the many gaps in the data, then into gradient-boosted trees combined by vote. Our predictions finished **2nd in the DataTour 2024 final**, with a MAPE of 0.237283.
 
-### Contexte
+| Feature importance (CatBoost) | Correlations |
+|---|---|
+| ![CatBoost feature importance: promotion, region and weather](media/feature-importance.png) | ![Correlation heatmaps of the training and submission data](media/correlations.png) |
 
-L’Afrique connaît une dynamique économique croissante avec une diversité d'entreprises opérant dans des secteurs variés (commerce de détail, e-commerce, agroalimentaire, etc.). Cependant, l'un des défis majeurs pour les entreprises africaines reste la gestion des stocks et la prédiction des ventes futures.
+## The task
 
-Ce projet vise à **prédire les ventes futures d'une entreprise** en se basant sur les ventes passées et plusieurs facteurs contextuels influençant la demande, notamment les promotions, les jours fériés, les conditions météorologiques et la disponibilité des stocks. Une prédiction précise peut aider à mieux gérer l’inventaire, optimiser les promotions et ajuster les stratégies de prix pour maximiser les profits.
+Final of DataTour 2024. The training data has 83,047 daily sales from January 2022 to October 2024, for 150 products of 15 brands in 3 categories. Each sale has its date, price, promotion and holiday flags, weekend, available stock, weather, region and time of day. The goal is to predict `quantite_vendue`, the units sold, for 2,576 sales in November 2024, scored with the mean absolute percentage error (MAPE). The data comes from [Data Afrique Hub](https://github.com/dataafriquehub/donnee_vente).
 
----
+## What the data shows
 
-### Objectif
+- Only 10,923 rows are complete. 11,407 have no target, and most columns have thousands of gaps.
+- Promotion is the only feature clearly linked to sales (correlation 0.30). The models also rely on region and weather.
+- The November rows look like the training data, and holidays only fall in December.
 
-Prédire le nombre d'unités qui seront vendues entre le **2024-11-01 et le 2024-11-30**, à partir des données historiques de ventes d'une entreprise couvrant la période du **2022-01-01 au 2024-10-31**.
+## Approach
 
----
+- We fill the gaps from the structure of the data: the product ID from category and brand, the weekend flag from the date, the holiday flag from the month, price, brand and stock from the product, the weather from region and time of day, and the promotion flag with a random forest.
+- We add date features and features from the product ID: arrival year and month, product number and days since arrival.
+- We train six models: XGBoost, CatBoost, LightGBM, HistGradientBoosting, gradient boosting and random forest. Their predictions are rounded to whole units and combined by majority vote.
+- We also ran AutoGluon for comparison.
+- `src/` holds a script version with 5-fold training, Optuna tuning, a model dispatcher with the tuned settings and a voting regressor.
 
-### Structure des Données
+## Results
 
-#### Fichier d’entraînement (`train.csv`):
+| Model | Validation MAPE |
+|---|---|
+| Single models (XGBoost, CatBoost, LightGBM, HistGradientBoosting) | 0.2525 to 0.2529 |
+| Majority vote of six models, rounded | 0.2449 |
+| AutoGluon weighted ensemble | 0.2451 |
+| **Final leaderboard** | **0.2373** (2nd) |
 
-- **Taille** : 83 047 lignes.
-- **Colonnes** : Inclut toutes les colonnes, y compris la cible `quantite_vendue`.
-- **Source** : [train.csv](https://raw.githubusercontent.com/dataafriquehub/donnee_vente/refs/heads/main/train.csv)
+## Files
 
-#### Fichier de soumission (`submission.csv`):
+| Path | Content |
+|---|---|
+| `notebooks/` | the main notebook (exploration, imputation, models) and the AutoGluon run |
+| `src/` | folds, preprocessing, model dispatcher, Optuna tuning, training and inference scripts |
+| `utils/` | EDA and feature engineering helpers |
+| `input/` | the training data with folds, and the sample submission |
+| `artifacts/` | submission files from each team member and model |
 
-- **Taille** : 2 576 lignes.
-- **Colonnes** : Contient toutes les caractéristiques sauf la colonne cible `quantite_vendue`.
-- **Source** : [submission.csv](https://raw.githubusercontent.com/dataafriquehub/donnee_vente/refs/heads/main/submission.csv)
+## Run it
 
----
-
-### Description des Colonnes
-
-| **Variable**                               | **Description**                                                                               |
-| ------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| **ID Produit (id\_produit)**               | Identifiant unique pour chaque produit vendu.                                                 |
-| **Date (date)**                            | La date de la vente, allant du 1er janvier 2022 au 31 octobre 2024.                           |
-| **Catégorie (categorie)**                  | La catégorie du produit (ex. Électronique, Habillement, Alimentaire).                         |
-| **Marque (marque)**                        | La marque du produit (ex. Samsung, Nike, Nestlé, etc.).                                       |
-| **Prix Unitaire (prix\_unitaire)**         | Le prix de vente par unité du produit.                                                        |
-| **Promotion (promotion)**                  | Indicateur binaire (0 ou 1) indiquant si le produit était en promotion au moment de la vente. |
-| **Jour Férié (jour\_ferie)**               | Indicateur binaire (0 ou 1) indiquant si la vente a eu lieu un jour férié.                    |
-| **Week-end (weekend)**                     | Indicateur binaire (0 ou 1) indiquant si la vente a eu lieu un week-end.                      |
-| **Stock Disponible (stock\_disponible)**   | Nombre d’unités disponibles pour la vente ce jour-là.                                         |
-| **Condition Météo (condition\_meteo)**     | Type de condition météo le jour de la vente (ex. Ensoleillé, Pluie, Orageux, Neigeux).        |
-| **Région (region)**                        | Région géographique de la vente (ex. Urbain, Périurbain, Rural).                              |
-| **Moment de la Journée (moment\_journee)** | Le moment de la journée où la vente a eu lieu (ex. Matinée, Après-midi, Soirée).              |
-| **Quantité Vendue (quantite\_vendue)**     | Le nombre d'unités réellement vendues de chaque produit (pour l'entraînement seulement).      |
-
-*Note :* La **Quantité Vendue** est la variable cible à prédire pour novembre 2024.
-
----
-
-### Critères d'évaluation
-
-Les prédictions seront évaluées à l'aide de la **Mean Absolute Percentage Error (MAPE)** :
-
-- Les équipes avec les MAPE les plus faibles (indiquant une meilleure précision) seront classées en tête.
-- Trois soumissions par jour au maximum sont autorisées par équipe.
-
----
-
-### Format de la soumission
-
-Un fichier CSV contenant les colonnes suivantes :
-
-- **`id`** : Identifiant de chaque ligne dans `submission.csv`.
-- **`quantite_vendue`** : Prédiction de la quantite\_vendue pour chaque ligne.
-
-Exemple de format attendu :
-
-```csv
-id,quantite_vendue
-1,320
-2,7500
-3,1000
-...
+```bash
+make install   # pip install -r requirements.txt
+make folds     # create the folds
+make train     # train the model set in src/config.py
+python src/inference_label_tree.py
 ```
 
----
+Use `src/inference_label_tree.py` for predictions: the Makefile's `inference` target points to a script name that no longer exists. On scikit-learn 0.24 and later, `src/create_folds.py` needs `shuffle=True` in its `KFold`, because it sets a `random_state`.
